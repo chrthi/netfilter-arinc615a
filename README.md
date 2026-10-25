@@ -9,8 +9,8 @@ peers act as TFTP server during one operation:
 1. The Data Loader (DL) sends a RRQ/WRQ to the Target's UDP port 59. The
    Target answers from a new port (normal TFTP).
 2. The Target sends its own RRQ/WRQs (e.g. `.LUS` status files, data file
-   reads) to the DL's TFTP server. That port is the source port of the DL's
-   request, or the value of a `port` option in that request.
+   reads) to the DL's TFTP server. That is port 59 as well, unless the DL's
+   request carries a `port` option naming another one.
 3. The DL answers those from a new port again.
 
 ## How it works
@@ -21,8 +21,8 @@ expectations:
 
 | Seen on             | Expectation (any source port) | Kind      |
 |---------------------|-------------------------------|-----------|
-| root connection     | Target → DL server port       | permanent |
-| root, `port` option differs from source port | Target → DL request port | one shot |
+| root connection     | Target → DL server port (59 or `port` option) | permanent |
+| root, unless the DL sent from its server port | Target → DL request port (the reply) | one shot |
 | any child connection with a RRQ/WRQ | responder → requester port | one shot |
 
 Every expected connection inherits the helper, so all flows of an operation
@@ -122,7 +122,10 @@ and an upload after an idle period longer than the timeout (must fail).
 
 - Only the first 512 bytes of a request are parsed for the `port` option, as
   RFC 2347 limits requests to that size.
-- An invalid `port` value (not 1–65535 decimal) is ignored and the request's
-  source port is used.
+- An invalid `port` value (not 1–65535 decimal) is ignored and port 59 is
+  used.
+- The DL server port is used as is on the address the Target sees. Behind
+  NAT, the DL must therefore be reachable on that same port of the
+  translated address (the NAT helper maps it back to the DL).
 - Requests are recognised by opcode only; a Target that answers from port 59
   itself (no new TID) is also covered since that is the root's reply direction.

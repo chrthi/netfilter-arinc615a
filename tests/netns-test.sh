@@ -73,6 +73,7 @@ runA6() {
 }
 runA6
 runA 2 "--sport 50000 --opt 50059"
+runA 3 "--sport 59"
 
 ########## Scenario B: router in the middle doing SNAT with port remapping ##########
 setupB() {

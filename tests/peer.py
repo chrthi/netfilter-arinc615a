@@ -4,7 +4,8 @@
 dl:  sends WRQ to target:59 (optionally with a "port" option), transfers one
      block, then serves the Target's WRQs on its server port.
 tgt: answers the DL's WRQ from a new port, then sends its own WRQs (status
-     uploads) to the DL's server port according to a schedule.
+     uploads) to the DL's server port (59 or the "port" option)
+     according to a schedule.
 """
 import socket, struct, sys, time, argparse
 
@@ -63,12 +64,11 @@ def recv_file(s, first_peer_reply):
 
 def dl(args):
     s = sock(args.sport)
-    srv = s
     opts = {}
     if args.opt:
         opts["port"] = args.opt
-        if args.opt != args.sport:
-            srv = sock(args.opt)
+    srvport = args.opt or 59
+    srv = s if srvport == args.sport else sock(srvport)
     s.sendto(req(WRQ, "TARGET.LUI", opts), (args.target, 59))
     b, tid = s.recvfrom(1024)
     assert struct.unpack("!HH", b[:4]) == (ACK, 0), b
@@ -96,7 +96,7 @@ def tgt(args):
     l.settimeout(10)
     b, dlpeer = l.recvfrom(1024)
     name, opts = parse_req(b)
-    dlport = int(opts.get("port", dlpeer[1]))
+    dlport = int(opts.get("port", 59))
     log(f"TGT: {name} from {dlpeer}, DL server port {dlport}")
     c = sock()
     recv_file(c, dlpeer)

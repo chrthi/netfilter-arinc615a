@@ -9,9 +9,9 @@
  *    Target's UDP port 59 (the "root" connection). The Target answers from a
  *    new port, as in plain TFTP.
  *  - During the operation the Target sends its own RRQ/WRQs (status files,
- *    data files) to the DL's TFTP server. That port is the source port of the
- *    DL's request, unless the request carries a "port" option (ASCII decimal)
- *    naming another one. The DL answers those from a new port again.
+ *    data files) to the DL's TFTP server. That is UDP port 59 as well,
+ *    unless the DL's request carries a "port" option (ASCII decimal) naming
+ *    another one. The DL answers those from a new port again.
  *
  * Every connection created from an expectation gets this helper as well, so
  * all flows of one operation form a tree below the root connection. Each
@@ -300,7 +300,7 @@ static int arinc615a_request(struct sk_buff *skb, unsigned int dataoff,
 	/* The requester's port, as the peer sees it and as it knows it. */
 	__be16 req_port = reply->dst.u.udp.port;
 	__be16 req_saved = orig->src.u.udp.port;
-	__be16 srv_port, srv_saved;
+	__be16 srv_port;
 	unsigned int len;
 	bool has_opt;
 	u16 opt = 0;
@@ -331,14 +331,12 @@ static int arinc615a_request(struct sk_buff *skb, unsigned int dataoff,
 		has_opt = false;
 	spin_unlock_bh(&arinc615a_buf_lock);
 
-	if (has_opt) {
-		/* the Target uses the option value as is */
-		srv_port = htons(opt);
-		srv_saved = htons(opt);
-	} else {
-		srv_port = req_port;
-		srv_saved = req_saved;
-	}
+	/*
+	 * The Target uses this port as is, on whatever address it sees the DL
+	 * at. With NAT the DL therefore has to be reachable on the same port
+	 * of the translated address.
+	 */
+	srv_port = htons(has_opt ? opt : ARINC615A_PORT);
 	pr_debug("DL server port %u%s\n", ntohs(srv_port),
 		 has_opt ? " (port option)" : "");
 
@@ -349,7 +347,7 @@ static int arinc615a_request(struct sk_buff *skb, unsigned int dataoff,
 			return ret;
 	}
 	/* covers the answer to this request too if the ports are equal */
-	return arinc615a_expect(skb, ct, helper, srv_port, srv_saved,
+	return arinc615a_expect(skb, ct, helper, srv_port, srv_port,
 				NF_CT_EXPECT_PERMANENT);
 }
 
